@@ -1,276 +1,238 @@
-// render.js — everything the player sees: HUD panel, table, cards, banners.
-// One job: turn game state into DOM. No rules, no input handling.
+// Ember Court — render.js
+// Semua gambar ke layar: kartu, nyawa, HUD padat, jurnal, banner,
+// layar judul/akhir, dan confetti. Tidak ada logika aturan di sini.
 
-import { SIGILS, START_LIFE } from './config.js';
-import { aiMoodLine } from './ai.js';
-import { verdictLine } from './rules.js';
+import { SIGIL_INFO, SIGILS, SIGIL_BEATS, START_HP } from './config.js';
+import { cardLabel } from './deck.js';
+import { endSummary } from './state.js';
 
-const $ = (sel, root = document) => root.querySelector(sel);
-
-const KIND_LABEL = { atk: 'SERANG', mirror: 'CERMIN', ward: 'PERISAI', wild: 'LIAR' };
-
-// One card face. Colour + shape + name tell the sigil apart, never text alone.
-export function cardElement(card, opts = {}) {
-  const el = document.createElement('div');
-  if (opts.faceDown) {
-    el.className = `card back${opts.small ? ' small' : ''}`;
-    el.innerHTML = `<div class="card-back-pattern">✦</div><div class="card-back-name">EMBER<br>COURT</div>`;
-    return el;
-  }
-  const sigil = SIGILS[card.sigil];
-  el.className = `card sigil-${card.sigil}${opts.small ? ' small' : ''}${opts.playable ? ' playable' : ''}${opts.selected ? ' selected' : ''}`;
-  if (opts.index != null) el.dataset.index = String(opts.index);
-  el.style.setProperty('--sigil', sigil.color);
-  el.style.setProperty('--sigil-dark', sigil.dark);
-  el.innerHTML = `
-    <div class="card-top"><span class="card-power">${card.kind === 'mirror' ? '↻' + card.power : card.power}</span><span class="card-shape">${sigil.shape}</span></div>
-    <div class="card-mid"><span class="card-big-shape">${sigil.shape}</span></div>
-    <div class="card-sigil">${sigil.name.toUpperCase()}</div>
-    <div class="card-name">${card.name}</div>
-    <div class="card-kind">${KIND_LABEL[card.kind]}</div>`;
-  return el;
+function el(id) {
+  return document.getElementById(id);
 }
 
-// The dense side panel: mode, lives, score, resonance, AI state, objectives, log.
-export function buildHud(app, state) {
-  const hud = document.createElement('aside');
-  hud.id = 'hud';
-  hud.innerHTML = `
-    <div class="hud-title"><span class="hud-logo">✦ EMBER COURT ✦</span><span class="hud-mode" id="hud-mode"></span></div>
-    <div class="hud-row"><span class="hud-label">RONDE</span><span class="hud-value" id="hud-round">1</span></div>
-    <div class="hud-row"><span class="hud-label">SKOR</span><span class="hud-value" id="hud-score">0</span></div>
-    <div class="hud-life">
-      <div class="life-head"><span id="hud-pname">KAMU</span><span id="hud-plife">30 / 30</span></div>
-      <div class="life-bar"><div class="life-fill player" id="hud-pbar"></div></div>
-      <div class="life-head"><span id="hud-aname">LAWAN</span><span id="hud-alife">30 / 30</span></div>
-      <div class="life-bar"><div class="life-fill ai" id="hud-abar"></div></div>
-    </div>
-    <div class="hud-resonance"><span class="hud-label">RESONANSI</span><span id="hud-reso">—</span></div>
-    <div class="hud-ai"><span class="hud-label">LAWAN</span><span id="hud-aimood"></span></div>
-    <div class="hud-objectives"><span class="hud-label">MISI</span><ul id="hud-objectives"></ul></div>
-    <div class="hud-counts"><span id="hud-deck"></span><span id="hud-hand"></span></div>
-    <div class="hud-log"><span class="hud-label">JURNAL DUEL</span><ul id="hud-log"></ul></div>
-    <div class="hud-buttons">
-      <button id="btn-discard" type="button">Buang 1 kartu · tarik baru (D)</button>
-      <button id="btn-sound" type="button">Suara: nyala (M)</button>
-      <button id="btn-menu" type="button">Menu (Esc)</button>
-    </div>
-    <div class="hud-cycle"><span class="hud-label">SIKLUS SIGIL</span><span class="cycle-line">▲ Api &gt; ◆ Daun &gt; ■ Batu &gt; ● Air &gt; ▲ Api</span><span class="cycle-note">★ Liar unggul atas semua sigil · ↻ Cermin meniru kekuatan lawan +1</span></div>`;
-  app.appendChild(hud);
+// Satu kartu menghadap atas: glyph besar, nama sigil, angka kekuatan.
+export function cardElement(card, opts) {
+  const o = opts || {};
+  const div = document.createElement('div');
+  div.className = `card sig-${card.sigil}${o.small ? ' small' : ''}${o.playable ? ' playable' : ''}`;
+  if (o.index !== undefined) div.dataset.index = String(o.index);
+  const info = SIGIL_INFO[card.sigil];
+  const power = card.sigil === 'cermin' ? '?' : String(card.power);
+  div.innerHTML =
+    `<span class="card-glyph">${info.glyph}</span>` +
+    `<span class="card-name">${info.name}</span>` +
+    `<span class="card-power">${power}</span>` +
+    `<span class="card-corner">${power}</span>`;
+  if (o.onClick) div.addEventListener('click', () => o.onClick(o.index));
+  return div;
 }
 
-// The table: foe zone, arena, player zone.
-export function buildTable(app) {
-  const table = document.createElement('main');
-  table.id = 'table';
-  table.innerHTML = `
-    <section id="foe-zone" class="zone">
-      <div class="zone-head"><span id="foe-name"></span><span id="foe-hand-count"></span></div>
-      <div id="foe-hand" class="mini-hand"></div>
-      <div class="played-row"><div id="foe-played" class="played-slot"></div><div id="arena-mid"></div><div id="player-played" class="played-slot"></div></div>
-    </section>
-    <section id="arena"><div id="banner" class="banner hidden"></div><div id="arena-line" class="arena-line"></div></section>
-    <section id="player-zone" class="zone">
-      <div class="zone-head"><span>KAMU · Tanganmu</span><span id="player-hint">Klik kartu untuk memainkannya · 1–5 di keyboard</span></div>
-      <div id="player-hand" class="hand"></div>
-    </section>`;
-  app.appendChild(table);
+// Punggung kartu tertutup untuk tangan lawan.
+export function cardBackElement() {
+  const div = document.createElement('div');
+  div.className = 'card back';
+  div.innerHTML = '<span class="card-glyph">🔥</span><span class="card-name">Ember</span>';
+  return div;
 }
 
-// Title overlay with the three named modes and the rules at a glance.
-export function buildTitle(app, modes, onPick) {
-  const ov = document.createElement('div');
-  ov.id = 'title-overlay';
-  ov.className = 'overlay';
-  ov.innerHTML = `
-    <div class="title-card">
-      <div class="title-kicker">DUEL EMPAT SIGIL · 26 KARTU · 3 LAWAN</div>
-      <h1>EMBER<br>COURT</h1>
-      <p class="title-sub">Setiap ronde, mainkan 1 kartu. Sigil yang unggul menang; kekuatan memutuskan sisanya. Menang 2 ronde beruntun dengan sigil yang sama untuk memicu <b>RESONANSI +4</b>. Kalahkan lawan hingga nyawanya 0.</p>
-      <div class="cycle-diagram"><span>▲ Api</span><i>›</i><span>◆ Daun</span><i>›</i><span>■ Batu</span><i>›</i><span>● Air</span><i>›</i><span>▲ Api</span></div>
-      <div class="mode-pick" id="mode-pick"></div>
-      <p class="title-foot">Keyboard: 1–5 pilih kartu · D buang &amp; tarik · M suara · Esc menu · Offline penuh, tanpa jaringan.</p>
-    </div>`;
-  const pick = ov.querySelector('#mode-pick');
-  modes.forEach((m) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'mode-card';
-    b.style.setProperty('--accent', m.accent);
-    b.innerHTML = `<b>${m.name}</b><span>${m.subtitle}</span><span class="mode-foe">Lawan: ${m.foeName} — ${m.foeTitle}</span>`;
-    b.addEventListener('click', () => onPick(m.id));
-    pick.appendChild(b);
-  });
-  app.appendChild(ov);
-  return ov;
+// Slot kosong di arena saat belum ada kartu dimainkan.
+export function emptySlotElement(label) {
+  const div = document.createElement('div');
+  div.className = 'card slot';
+  div.innerHTML = `<span class="card-name">${label}</span>`;
+  return div;
 }
 
-// End overlay: win flourish or defeat, with the duel's stats.
-export function buildEnd(app, onAgain, onMenu) {
-  const ov = document.createElement('div');
-  ov.id = 'end-overlay';
-  ov.className = 'overlay hidden';
-  ov.innerHTML = `
-    <div class="title-card end-card">
-      <div class="title-kicker" id="end-kicker"></div>
-      <h1 id="end-title"></h1>
-      <p class="title-sub" id="end-sub"></p>
-      <div class="end-stats" id="end-stats"></div>
-      <div class="end-buttons">
-        <button id="btn-again" type="button">Main Lagi (R)</button>
-        <button id="btn-endmenu" type="button">Ganti Mode</button>
-      </div>
-    </div>`;
-  ov.querySelector('#btn-again').addEventListener('click', onAgain);
-  ov.querySelector('#btn-endmenu').addEventListener('click', onMenu);
-  app.appendChild(ov);
-  return ov;
+// Bilah nyawa: lebar persen + angka + kelas near-miss saat <= 5.
+export function renderHpBar(fillEl, textEl, hp, max) {
+  const pct = Math.max(0, Math.min(100, (hp / max) * 100));
+  fillEl.style.width = `${pct}%`;
+  fillEl.classList.toggle('low', hp <= 5 && hp > 0);
+  fillEl.classList.toggle('dead', hp <= 0);
+  textEl.textContent = `${Math.max(0, hp)} / ${max}`;
 }
 
-// Full re-render from state. Cheap: the table is small.
-export function render(state) {
-  const mode = state.mode;
-  document.body.style.setProperty('--table', mode.table);
-  document.body.style.setProperty('--felt', mode.felt);
-  document.body.style.setProperty('--accent', mode.accent);
-
-  $('#hud-mode').textContent = `${mode.name} — ${mode.foeName}`;
-  $('#hud-round').textContent = String(state.round);
-  $('#hud-score').textContent = String(state.pScore);
-  $('#hud-pname').textContent = 'KAMU';
-  $('#hud-plife').textContent = `${state.pLife} / ${START_LIFE}`;
-  $('#hud-pbar').style.width = `${(state.pLife / START_LIFE) * 100}%`;
-  $('#hud-aname').textContent = mode.foeName.toUpperCase();
-  $('#hud-alife').textContent = `${state.aLife} / ${START_LIFE}`;
-  $('#hud-abar').style.width = `${(state.aLife / START_LIFE) * 100}%`;
-  $('#foe-name').textContent = `${mode.foeName} · ${mode.foeTitle}`;
-
-  const reso = state.pStreak.count > 0
-    ? `${SIGILS[state.pStreak.sigil].shape} ${SIGILS[state.pStreak.sigil].name} ${state.pStreak.count}/2`
-    : '—';
-  $('#hud-reso').textContent = reso;
-  $('#hud-aimood').textContent = aiMoodLine(mode.personality, state.aLife, state.pLife);
-  $('#hud-deck').textContent = `Dek: ${state.player.deck.length} kartu`;
-  $('#hud-hand').textContent = `Tangan: ${state.player.hand.length} · Lawan: ${state.ai.hand.length}`;
-  $('#foe-hand-count').textContent = `${state.ai.hand.length} kartu di tangan lawan`;
-
-  // Objectives with live checkmarks.
-  const objectives = [
-    { done: state.winner === 'player', text: `Kalahkan ${mode.foeName}` },
-    { done: state.stats.tricks >= 3, text: `Menang 3 trik (${state.stats.tricks}/3)` },
-    { done: state.stats.resonances >= 1, text: `Picu 1 Resonansi (${state.stats.resonances}/1)` },
-    { done: state.stats.damageDealt >= 20, text: `Beri 20 luka (${state.stats.damageDealt}/20)` },
-  ];
-  $('#hud-objectives').innerHTML = objectives
-    .map((o) => `<li class="${o.done ? 'done' : ''}">${o.done ? '✓' : '○'} ${o.text}</li>`)
-    .join('');
-
-  $('#hud-log').innerHTML = state.log
-    .map((e) => `<li><b>R${e.round}</b> ${e.text}</li>`)
-    .join('');
-
-  // Foe hand: face-down backs.
-  const foeHand = $('#foe-hand');
-  foeHand.innerHTML = '';
-  state.ai.hand.forEach(() => foeHand.appendChild(cardElement(null, { faceDown: true, small: true })));
-
-  // Played cards in the arena.
-  const foeSlot = $('#foe-played');
-  foeSlot.innerHTML = '';
-  if (state.aPlayed) foeSlot.appendChild(cardElement(state.aPlayed, { small: false }));
-  else foeSlot.appendChild(slotPlaceholder('Kartu lawan'));
-  const playerSlot = $('#player-played');
-  playerSlot.innerHTML = '';
-  if (state.pPlayed) playerSlot.appendChild(cardElement(state.pPlayed, { small: false }));
-  else playerSlot.appendChild(slotPlaceholder('Kartumu'));
-
-  // Player hand.
-  const hand = $('#player-hand');
-  hand.innerHTML = '';
-  state.player.hand.forEach((card, i) => {
-    hand.appendChild(cardElement(card, {
+// Tangan pemain (5 kartu, bisa diklik) dan tangan lawan (tertutup).
+export function renderHands(game, ui, onPlay) {
+  const myHand = el('my-hand');
+  myHand.innerHTML = '';
+  game.player.hand.forEach((card, i) => {
+    const node = cardElement(card, {
       index: i,
-      playable: state.phase === 'pick',
-      selected: state.discardMode,
-    }));
+      playable: game.phase === 'play',
+      onClick: (idx) => onPlay(idx),
+    });
+    if (ui.discardArmed) node.classList.add('discard-target');
+    myHand.appendChild(node);
   });
+  const aiHand = el('ai-hand');
+  aiHand.innerHTML = '';
+  game.ai.hand.forEach(() => aiHand.appendChild(cardBackElement()));
+}
 
-  // Arena line: phase hint or last verdict.
-  const line = $('#arena-line');
-  if (state.phase === 'pick') {
-    line.textContent = state.discardMode
-      ? 'Mode buang: klik 1 kartu untuk membuangnya dan menarik pengganti.'
-      : 'Giliranmu — pilih 1 kartu untuk dimainkan.';
-  } else if (state.phase === 'ai-think') {
-    line.textContent = `${mode.foeName} sedang menimbang kartu…`;
-  } else if (state.phase === 'reveal') {
-    line.textContent = 'Kartu dibuka!';
-  } else if (state.lastResult) {
-    line.textContent = verdictLine(state.lastResult, 'Kamu', mode.foeName);
-  }
-
-  // Overlays.
-  $('#title-overlay').classList.toggle('hidden', state.phase !== 'title');
-  const end = $('#end-overlay');
-  if (state.phase === 'over') {
-    end.classList.remove('hidden');
-    fillEnd(state);
+// Kartu yang baru dimainkan di arena + lencana VS.
+export function renderPlayed(game) {
+  const mine = el('my-played');
+  const foe = el('foe-played');
+  mine.innerHTML = '';
+  foe.innerHTML = '';
+  const last = game.lastOutcome;
+  if (last) {
+    mine.appendChild(cardElement(last.mineCard, { small: false }));
+    mine.firstChild.classList.add('deal-in');
+    foe.appendChild(cardElement(last.foeCard, { small: false }));
+    foe.firstChild.classList.add('deal-in');
+    el('vs-badge').textContent = last.kind === 'clash' ? 'BENTROK' : last.kind === 'blocked' ? 'DITAHAN' : 'VS';
   } else {
-    end.classList.add('hidden');
+    mine.appendChild(emptySlotElement('Kartumu'));
+    foe.appendChild(emptySlotElement(game.mode.aiName));
+    el('vs-badge').textContent = 'VS';
   }
-
-  // Discard button state.
-  const btn = $('#btn-discard');
-  btn.disabled = state.phase !== 'pick' || state.discardUsed;
-  btn.textContent = state.discardUsed
-    ? 'Buang sudah dipakai ronde ini'
-    : state.discardMode ? 'Batal mode buang (D)' : 'Buang 1 kartu · tarik baru (D)';
 }
 
-function slotPlaceholder(text) {
-  const d = document.createElement('div');
-  d.className = 'slot-placeholder';
-  d.textContent = text;
-  return d;
-}
+// HUD padat: ronde, skor, meter Resonansi, status AI, misi, jurnal.
+export function renderHud(game, ui) {
+  el('round-label').textContent = `Ronde ${game.round}`;
+  el('score-label').textContent = `Skor ${game.player.roundsWon} – ${game.ai.roundsWon}`;
+  el('mode-label').textContent = game.mode.name;
+  el('ai-name').textContent = game.mode.aiName;
+  el('ai-blurb').textContent = game.mode.aiBlurb;
 
-function fillEnd(state) {
-  const win = state.winner === 'player';
-  $('#end-kicker').textContent = win ? '✦ KEMENANGAN ✦' : 'KEKALAHAN';
-  $('#end-title').textContent = win ? 'TAKHTA MILIKMU' : 'TAKHTA JATUH';
-  $('#end-sub').textContent = win
-    ? `${state.mode.foeName} bertekuk lutut. Dewan Bara mengakui namamu — ${state.pScore} poin.`
-    : `${state.mode.foeName} merebut takhta. Nyawamu habis di ronde ${state.round} — coba lagi dengan sigil berbeda.`;
-  const s = state.stats;
-  $('#end-stats').innerHTML = [
-    ['Skor akhir', state.pScore],
-    ['Trik dimenangkan', s.tricks],
-    ['Luka diberikan', s.damageDealt],
-    ['Luka diterima', s.damageTaken],
-    ['Resonansi', s.resonances],
-    ['Bentrok', s.clashes],
-    ['Ronde dimainkan', state.round],
-    ['Kartu dimainkan', s.cardsPlayed],
-  ].map(([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`).join('');
-}
-
-// Center banner: result, resonance, near miss. Auto-hides via the caller.
-export function showBanner(text, kind = '') {
-  const b = $('#banner');
-  b.textContent = text;
-  b.className = `banner show ${kind}`;
-}
-
-// Win flourish: golden confetti pieces over the table.
-export function confetti() {
-  const table = $('#table');
-  for (let i = 0; i < 42; i += 1) {
-    const p = document.createElement('i');
-    p.className = 'confetti';
-    p.style.left = `${Math.random() * 100}%`;
-    p.style.background = ['#ffd166', '#ff6b35', '#4ade80', '#38bdf8', '#c084fc'][i % 5];
-    p.style.animationDelay = `${Math.random() * 0.6}s`;
-    table.appendChild(p);
-    window.setTimeout(() => p.remove(), 2600);
+  // Meter Resonansi: streak sigil + jumlah beruntun (0/1/2).
+  const streak = game.player.streakSigil
+    ? `${SIGIL_INFO[game.player.streakSigil].glyph} ${SIGIL_INFO[game.player.streakSigil].name} ×${game.player.streakCount}`
+    : '—';
+  el('resonance-text').textContent = `Resonansimu: ${streak} (2× beruntun = +4 luka)`;
+  const pips = el('resonance-pips').children;
+  for (let i = 0; i < pips.length; i++) {
+    pips[i].classList.toggle('on', game.player.streakCount > i);
   }
+  const aiStreak = game.ai.streakSigil
+    ? `${SIGIL_INFO[game.ai.streakSigil].glyph} ${SIGIL_INFO[game.ai.streakSigil].name} ×${game.ai.streakCount}`
+    : '—';
+  el('ai-streak-text').textContent = `Resonansi lawan: ${aiStreak}`;
+
+  // Status AI: kartu terakhir + kepribadian.
+  const last = game.lastOutcome;
+  el('ai-status').textContent = last
+    ? `${game.mode.aiName} memainkan ${cardLabel(last.foeCard)}. ${game.mode.aiBlurb}`
+    : `${game.mode.aiName} menunggumu. ${game.mode.aiBlurb}`;
+
+  // Misi mode ini.
+  el('mission-text').textContent = game.mode.mission;
+  el('mission-progress').textContent = game.mission.done
+    ? `Selesai ✓ (${game.mission.count}/${game.mode.missionGoal})`
+    : `${game.mission.count}/${game.mode.missionGoal}`;
+  el('mission-box').classList.toggle('done', game.mission.done);
+
+  // Jurnal duel (entri terbaru di bawah).
+  const journal = el('journal');
+  journal.innerHTML = '';
+  game.log.slice(-9).forEach((line) => {
+    const li = document.createElement('li');
+    li.textContent = line;
+    journal.appendChild(li);
+  });
+  journal.scrollTop = journal.scrollHeight;
+
+  // Tombol buang-tarik dan statusnya.
+  const btn = el('btn-discard');
+  btn.disabled = game.phase !== 'play' || game.discardUsed;
+  btn.textContent = game.discardUsed ? 'Buang dipakai ✓' : ui.discardArmed ? 'Pilih kartu untuk dibuang…' : 'Buang & Tarik (D)';
+  el('discard-state').textContent = game.discardUsed
+    ? 'Buang-tarik sudah dipakai ronde ini.'
+    : 'Sekali per ronde: buang 1 kartu, tarik 1 baru.';
+}
+
+// Banner besar di tengah arena: Resonansi / Near Miss / Bentrok.
+export function showBanner(text, kind) {
+  const banner = el('banner');
+  banner.textContent = text;
+  banner.className = `show ${kind || 'info'}`;
+  clearTimeout(showBanner._t);
+  showBanner._t = setTimeout(() => { banner.className = ''; banner.textContent = ''; }, 2200);
+}
+
+// Diagram siklus sigil di arena: Api > Daun > Batu > Air > Api.
+export function renderCycle() {
+  const strip = el('cycle-strip');
+  strip.innerHTML = '';
+  SIGILS.forEach((sigil, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'cycle-chip';
+    chip.style.setProperty('--sigil', SIGIL_INFO[sigil].color);
+    chip.textContent = `${SIGIL_INFO[sigil].glyph} ${SIGIL_INFO[sigil].name}`;
+    strip.appendChild(chip);
+    if (i < SIGILS.length - 1) {
+      const arrow = document.createElement('span');
+      arrow.className = 'cycle-arrow';
+      arrow.textContent = '›';
+      strip.appendChild(arrow);
+    }
+  });
+  const loop = document.createElement('span');
+  loop.className = 'cycle-arrow';
+  loop.textContent = '↺ Api';
+  strip.appendChild(loop);
+  const legend = el('cycle-legend');
+  legend.textContent = 'Api mengalahkan Daun · Daun mengalahkan Batu · Batu mengalahkan Air · Air mengalahkan Api · Liar mengalahkan semua · Cermin meniru lawan +1';
+}
+
+// Layar judul: tiga kartu mode + cara main + seed.
+export function showTitle(game, seed) {
+  document.body.dataset.mode = game.mode.id;
+  el('title-screen').classList.remove('hidden');
+  el('end-screen').classList.add('hidden');
+  el('seed-line').textContent = `Seed ${seed} · Dek 30 kartu · Nyawa 30 · Keyboard: 1–5 main, D buang, Esc menu, R main lagi, M bisu`;
+}
+
+// Layar akhir: menang / kalah / seri + statistik + confetti bila menang.
+export function showEnd(game) {
+  const s = endSummary(game);
+  const screen = el('end-screen');
+  const title = el('end-title');
+  if (s.winner === 'mine') {
+    title.textContent = '👑 KAMU MENANG!';
+    title.className = 'win';
+    confettiBurst();
+  } else if (s.winner === 'foe') {
+    title.textContent = '💀 KAMU KALAH';
+    title.className = 'lose';
+  } else {
+    title.textContent = '🤝 SERI';
+    title.className = 'draw';
+  }
+  el('end-stats').innerHTML =
+    `<p>${game.mode.aiName} · ${game.mode.name} · ${s.rounds} ronde</p>` +
+    `<p>Nyawa akhir — Kamu ${s.playerHp} : ${s.aiHp} ${game.mode.aiName}</p>` +
+    `<p>Resonansi ${s.resonanceHits}× · Bentrok ${s.clashes}× · Perisai menahan ${s.blocks}×</p>` +
+    `<p>Misi: ${game.mission.done ? 'selesai ✓' : 'belum selesai'} (${game.mission.count}/${game.mode.missionGoal})</p>`;
+  screen.classList.remove('hidden');
+}
+
+// Confetti DOM: 90 serpihan jatuh saat menang.
+export function confettiBurst() {
+  const layer = el('confetti');
+  layer.innerHTML = '';
+  const colors = ['#ff6a3d', '#ffd23d', '#7fce62', '#b78cff', '#2f7fc9', '#ff8fb0'];
+  for (let i = 0; i < 90; i++) {
+    const piece = document.createElement('i');
+    piece.style.left = `${Math.random() * 100}%`;
+    piece.style.background = colors[i % colors.length];
+    piece.style.animationDelay = `${Math.random() * 0.6}s`;
+    piece.style.animationDuration = `${1.8 + Math.random() * 1.4}s`;
+    piece.style.transform = `rotate(${Math.random() * 360}deg)`;
+    layer.appendChild(piece);
+  }
+  setTimeout(() => { layer.innerHTML = ''; }, 4000);
+}
+
+// Gambar ulang seluruh layar dari keadaan game.
+export function renderAll(game, ui, onPlay) {
+  document.body.dataset.mode = game.mode.id;
+  renderHpBar(el('my-hp-fill'), el('my-hp-text'), game.player.hp, START_HP);
+  renderHpBar(el('ai-hp-fill'), el('ai-hp-text'), game.ai.hp, START_HP);
+  renderHands(game, ui, onPlay);
+  renderPlayed(game);
+  renderHud(game, ui);
 }

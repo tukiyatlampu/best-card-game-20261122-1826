@@ -1,102 +1,73 @@
-// config.js — every tunable number, sigil, card and mode of EMBER COURT.
-// One job: the game's data. No logic lives here.
+// Ember Court — config.js
+// Semua angka dan teks yang mengatur duel. Satu sumber kebenaran untuk
+// aturan, dek, mode, dan palet; modul lain hanya membaca dari sini.
 
-export const START_LIFE = 30;
+export const START_HP = 30;
 export const HAND_SIZE = 5;
+export const NEAR_MISS_HP = 5;
 export const CLASH_DAMAGE = 2;
-export const ADVANTAGE_DAMAGE = 3;
+export const SHIELD_HEAL = 2;
 export const RESONANCE_BONUS = 4;
-export const RESONANCE_STREAK = 2;
-export const WARD_HEAL = 2;
-export const NEAR_MISS_LIFE = 5;
-export const MIRROR_BASE = 5;
+export const ADVANTAGE_BONUS = 2;
 
-// Sigil cycle: FLAME beats LEAF, LEAF beats STONE, STONE beats TIDE, TIDE beats FLAME.
-// Each sigil is told apart by colour AND shape AND name, never by text alone.
-export const SIGILS = {
-  FLAME: { id: 'FLAME', name: 'Api', shape: '▲', color: '#ff6b35', dark: '#7c2d12', beats: 'LEAF' },
-  LEAF: { id: 'LEAF', name: 'Daun', shape: '◆', color: '#4ade80', dark: '#14532d', beats: 'STONE' },
-  STONE: { id: 'STONE', name: 'Batu', shape: '■', color: '#d6a35c', dark: '#57534e', beats: 'TIDE' },
-  TIDE: { id: 'TIDE', name: 'Air', shape: '●', color: '#38bdf8', dark: '#0c4a6e', beats: 'FLAME' },
-  WILD: { id: 'WILD', name: 'Liar', shape: '★', color: '#c084fc', dark: '#581c87', beats: null },
+// Siklus sigil: Api > Daun > Batu > Air > Api. Tiap sigil mengalahkan satu,
+// dikalahkan satu, dan netral melawan satu sigil lainnya.
+export const SIGILS = ['api', 'daun', 'batu', 'air'];
+export const SIGIL_BEATS = { api: 'daun', daun: 'batu', batu: 'air', air: 'api' };
+export const SIGIL_INFO = {
+  api: { name: 'Api', glyph: '🔥', color: '#e2482e', dark: '#7a1d10' },
+  daun: { name: 'Daun', glyph: '🍃', color: '#3f9e4d', dark: '#1d5c28' },
+  batu: { name: 'Batu', glyph: '🪨', color: '#8a7f8d', dark: '#4c4550' },
+  air: { name: 'Air', glyph: '💧', color: '#2f7fc9', dark: '#174a7d' },
+  cermin: { name: 'Cermin', glyph: '🪞', color: '#c9a227', dark: '#6d5610' },
+  perisai: { name: 'Perisai', glyph: '🛡️', color: '#4d7c8a', dark: '#274b57' },
+  liar: { name: 'Liar', glyph: '🃏', color: '#8e5fc0', dark: '#4b2a72' },
 };
 
-export const SIGIL_ORDER = ['FLAME', 'LEAF', 'STONE', 'TIDE'];
+// Kekuatan kartu sigil yang masuk dek: 6 tingkat per sigil.
+export const SIGIL_POWERS = [3, 4, 5, 6, 7, 8];
+export const SPECIAL_COUNTS = { cermin: 2, perisai: 2, liar: 2 };
+export const MIRROR_BASE_POWER = 5;
+export const WILD_POWER = 6;
+export const SHIELD_POWER = 0;
 
-// 26 cards. power = printed power; kind: 'atk' | 'mirror' | 'ward' | 'wild'.
-// Mirror copies the foe's base power +1. Ward negates the round and heals.
-// Wild counts as sigil-advantaged against anything, power fixed at 4.
-export const CARD_DEFS = [
-  // FLAME
-  { id: 'FL2', sigil: 'FLAME', power: 2, kind: 'atk', name: 'Percik Bara' },
-  { id: 'FL4', sigil: 'FLAME', power: 4, kind: 'atk', name: 'Lidah Api' },
-  { id: 'FL6', sigil: 'FLAME', power: 6, kind: 'atk', name: 'Badai Bara' },
-  { id: 'FL8', sigil: 'FLAME', power: 8, kind: 'atk', name: 'Mahkota Inferno' },
-  { id: 'FLM', sigil: 'FLAME', power: 5, kind: 'mirror', name: 'Cermin Bara' },
-  { id: 'FLW', sigil: 'FLAME', power: 1, kind: 'ward', name: 'Perisai Abu' },
-  // LEAF
-  { id: 'LE2', sigil: 'LEAF', power: 2, kind: 'atk', name: 'Tunas Muda' },
-  { id: 'LE4', sigil: 'LEAF', power: 4, kind: 'atk', name: 'Daun Berbisik' },
-  { id: 'LE6', sigil: 'LEAF', power: 6, kind: 'atk', name: 'Akar Menjalar' },
-  { id: 'LE8', sigil: 'LEAF', power: 8, kind: 'atk', name: 'Mahkota Rimba' },
-  { id: 'LEM', sigil: 'LEAF', power: 5, kind: 'mirror', name: 'Cermin Daun' },
-  { id: 'LEW', sigil: 'LEAF', power: 1, kind: 'ward', name: 'Perisai Lumut' },
-  // STONE
-  { id: 'ST2', sigil: 'STONE', power: 2, kind: 'atk', name: 'Kerikil Tajam' },
-  { id: 'ST4', sigil: 'STONE', power: 4, kind: 'atk', name: 'Batu Pijak' },
-  { id: 'ST6', sigil: 'STONE', power: 6, kind: 'atk', name: 'Pilar Granit' },
-  { id: 'ST8', sigil: 'STONE', power: 8, kind: 'atk', name: 'Gunung Runtuh' },
-  { id: 'STM', sigil: 'STONE', power: 5, kind: 'mirror', name: 'Cermin Batu' },
-  { id: 'STW', sigil: 'STONE', power: 1, kind: 'ward', name: 'Perisai Batu' },
-  // TIDE
-  { id: 'TI2', sigil: 'TIDE', power: 2, kind: 'atk', name: 'Tetes Embun' },
-  { id: 'TI4', sigil: 'TIDE', power: 4, kind: 'atk', name: 'Arus Tenang' },
-  { id: 'TI6', sigil: 'TIDE', power: 6, kind: 'atk', name: 'Gelombang Pasang' },
-  { id: 'TI8', sigil: 'TIDE', power: 8, kind: 'atk', name: 'Pusaran Samudra' },
-  { id: 'TIM', sigil: 'TIDE', power: 5, kind: 'mirror', name: 'Cermin Ombak' },
-  { id: 'TIW', sigil: 'TIDE', power: 1, kind: 'ward', name: 'Perisai Karang' },
-  // WILD (no sigil of its own)
-  { id: 'WI1', sigil: 'WILD', power: 4, kind: 'wild', name: 'Angin Tak Bernama' },
-  { id: 'WI2', sigil: 'WILD', power: 4, kind: 'wild', name: 'Bayang Tanpa Wujud' },
-];
-
-// Three named duels. Each has its own theme, palette and AI personality.
+// Tiga mode bernama: tema, palet, kepribadian AI, dan misi masing-masing.
 export const MODES = {
-  ember: {
-    id: 'ember',
-    name: 'Ember Court',
-    subtitle: 'Dewan Bara · Takhta Api',
-    foeName: 'Cinder Baron',
-    foeTitle: 'Baron Bara · Agresif',
-    personality: 'aggressive',
-    accent: '#ff6b35',
-    table: '#3b1d0f',
-    felt: '#5c2a12',
+  berburu: {
+    id: 'berburu',
+    name: 'Bara Memburu',
+    tagline: 'Raka menyerang tanpa henti. Bertahanlah dari bara.',
+    aiName: 'Raka si Pemburu',
+    aiPersonality: 'agresif',
+    aiBlurb: 'Selalu memainkan kartu terkuat di tangannya.',
+    mission: 'Menangkan 3 ronde dengan sigil Api',
+    missionGoal: 3,
+    palette: { bg: '#1c0f0a', panel: '#2a1710', accent: '#ff6a3d', ink: '#ffe8d6' },
   },
-  tide: {
-    id: 'tide',
-    name: 'Tide Hollow',
-    subtitle: 'Relung Pasang · Kedalaman Air',
-    foeName: 'Drowned Duchess',
-    foeTitle: 'Adipati Tenggelam · Bertahan',
-    personality: 'defensive',
-    accent: '#38bdf8',
-    table: '#0b2233',
-    felt: '#123a52',
+  tembok: {
+    id: 'tembok',
+    name: 'Tembok Lumut',
+    tagline: 'Sari menunggu di balik perisai. Pancing ia keluar.',
+    aiName: 'Sari si Penjaga',
+    aiPersonality: 'bertahan',
+    aiBlurb: 'Berperisai saat nyawanya rendah, menyimpan kartu kuat.',
+    mission: 'Tahan 3 serangan dengan Perisai',
+    missionGoal: 3,
+    palette: { bg: '#0d1a10', panel: '#152619', accent: '#7fce62', ink: '#e2f5d8' },
   },
-  thorn: {
-    id: 'thorn',
-    name: 'Thornwood',
-    subtitle: 'Hutan Duri · Takhta Rimba',
-    foeName: 'Bramble Queen',
-    foeTitle: 'Ratu Semak · Penipu',
-    personality: 'trickster',
-    accent: '#4ade80',
-    table: '#12240f',
-    felt: '#1d3a17',
+  topeng: {
+    id: 'topeng',
+    name: 'Topeng Asap',
+    tagline: 'Wira menipu di setiap ronde. Jangan percaya polanya.',
+    aiName: 'Wira si Penipu',
+    aiPersonality: 'penipu',
+    aiBlurb: 'Memainkan kartu acak — kadang umpan, kadang Liar.',
+    mission: 'Menangkan 2 ronde dengan kartu Liar',
+    missionGoal: 2,
+    palette: { bg: '#150f22', panel: '#1f1733', accent: '#b78cff', ink: '#efe6ff' },
   },
 };
-
-export const MODE_ORDER = ['ember', 'tide', 'thorn'];
-
-export const SCORE = { trick: 100, damage: 10, resonance: 150, clash: 25, win: 500 };
+export const MODE_ORDER = ['berburu', 'tembok', 'topeng'];
+export const DEFAULT_SEED = 20261122;
+export const GAME_TITLE = 'Ember Court';
+export const GAME_SUBTITLE = 'Duel Kartu Sigil — Dewan Bara';

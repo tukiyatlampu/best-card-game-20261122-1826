@@ -1,48 +1,69 @@
-// deck.js — builds, shuffles and draws from a 26-card deck.
-// One job: the deck. No rules, no rendering.
+// Ember Court — deck.js
+// Susunan dek dan pengelolaan tangan: bangun, kocok, tarik, buang.
+// Satu dek per duelist: 24 kartu sigil + 6 kartu spesial = 30 kartu.
 
-import { CARD_DEFS, HAND_SIZE } from './config.js';
+import {
+  SIGILS,
+  SIGIL_POWERS,
+  SPECIAL_COUNTS,
+  MIRROR_BASE_POWER,
+  WILD_POWER,
+  SHIELD_POWER,
+} from './config.js';
+import { shuffleDeck } from './random.js';
 
-// mulberry32: small deterministic RNG so ?shot= screenshots are reproducible.
-export function makeRng(seed) {
-  let a = seed >>> 0;
-  return function rng() {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+let cardCounter = 0;
+
+// Satu kartu. id unik per kartu agar render dan log bisa membedakannya.
+export function makeCard(sigil, power) {
+  cardCounter += 1;
+  return { id: `k${cardCounter}`, sigil, power };
 }
 
-// A fresh deck: one copy of every card definition, in definition order.
+// Dek segar yang belum dikocok: 4 sigil x 6 kekuatan + kartu spesial.
 export function buildDeck() {
-  return CARD_DEFS.map((d) => ({ ...d, uid: d.id }));
-}
-
-// Fisher-Yates shuffle, in place, using the given rng.
-export function shuffle(deck, rng) {
-  for (let i = deck.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(rng() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
+  const cards = [];
+  for (const sigil of SIGILS) {
+    for (const power of SIGIL_POWERS) {
+      cards.push(makeCard(sigil, power));
+    }
   }
-  return deck;
+  for (let i = 0; i < SPECIAL_COUNTS.cermin; i++) {
+    cards.push(makeCard('cermin', MIRROR_BASE_POWER));
+  }
+  for (let i = 0; i < SPECIAL_COUNTS.perisai; i++) {
+    cards.push(makeCard('perisai', SHIELD_POWER));
+  }
+  for (let i = 0; i < SPECIAL_COUNTS.liar; i++) {
+    cards.push(makeCard('liar', WILD_POWER));
+  }
+  return cards;
 }
 
-// Draw n cards from the front of the deck. Returns the drawn cards.
-export function draw(deck, n) {
-  return deck.splice(0, n);
+// Tumpukan tarik baru yang sudah dikocok dengan RNG yang diberikan.
+export function freshDrawPile(rng) {
+  return shuffleDeck(buildDeck(), rng);
 }
 
-// A full hand: a shuffled deck plus its opening hand of HAND_SIZE cards.
-export function newPlayerDeck(rng) {
-  const deck = shuffle(buildDeck(), rng);
-  const hand = draw(deck, HAND_SIZE);
-  return { deck, hand, discard: [] };
+// Tarik n kartu; kalau tumpukan habis, kocok ulang tumpukan buang.
+export function drawCards(pile, discard, n, rng) {
+  const drawn = [];
+  while (drawn.length < n) {
+    if (pile.length === 0) {
+      if (discard.length === 0) return drawn;
+      const reshuffled = shuffleDeck(discard.splice(0), rng);
+      pile.push(...reshuffled);
+    }
+    drawn.push(pile.pop());
+  }
+  return drawn;
 }
 
-// Rebuild a deck from the discard pile when the draw pile runs out.
-export function recycleDiscard(pile, rng) {
-  const fresh = shuffle(pile.splice(0, pile.length), rng);
-  return fresh;
+// Label singkat kartu untuk jurnal dan log, misal "Api 7" atau "Liar".
+export function cardLabel(card) {
+  if (card.sigil === 'cermin') return 'Cermin';
+  if (card.sigil === 'perisai') return 'Perisai';
+  if (card.sigil === 'liar') return `Liar ${card.power}`;
+  const names = { api: 'Api', daun: 'Daun', batu: 'Batu', air: 'Air' };
+  return `${names[card.sigil]} ${card.power}`;
 }
