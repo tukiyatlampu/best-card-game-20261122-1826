@@ -1,84 +1,134 @@
 # TEST_RESULTS.md — Ember Court (best-card-game-20261122-1826)
 
-Ringkasan run nyata. Semua perintah dijalankan di VM ini; tidak ada output exec
-yang di-redirect ke file repo — file ini ditulis tangan dari hasil run tersebut.
+Hasil run nyata di VM ini (Node v24.22.1; grader memakai Node 22, kode hanya
+memakai stdlib + ES module). Semua perintah dijalankan dari root repo ini,
+kecuali dinyatakan lain. Terakhir diperbarui: 2026-11-23 ~02:05 WIB
+(19:05 UTC), setelah perbaikan terakhir (jurnal pendek + favicon data URI).
 
-## 1. Harness logika — `node /tmp/test-card-game.mjs`
+## 1. Harness logika — `node test.mjs`
 
-121 checks, **121 pass, 0 fail**.
-
-- Dek: 26 kartu (4 sigil × 6 + 2 Liar), 4 Cermin, 4 Perisai; RNG deterministik
-  (seed sama → shuffle sama).
-- Siklus sigil: Api > Daun > Batu > Air > Api; Liar unggul atas semua sigil;
-  Liar vs Liar netral; sigil sama netral.
-- Cermin: meniru kekuatan lawan +1 (lawan 8 → 9; Cermin vs Cermin → 6;
-  Cermin vs Perisai → 2). Liar selalu berkekuatan 4.
-- Resolusi: keunggulan menang walau lebih lemah (luka 3); keunggulan +
-  selisih kekuatan (8 vs 6 → 5 luka); seri kekuatan → BENTROK, keduanya −2;
-  Perisai menahan + pulih 2; dua Perisai → keduanya +2.
-- Resonansi: menang 2× beruntun dengan sigil sama → +4 luka (6 vs 6 +
-  streak Api → 7 luka).
-- Near miss: korban tersisa ≤ 5 nyawa terdeteksi; nyawa tidak pernah < 0.
-- AI: defensif di nyawa ≤ 12 memainkan Perisai; agresif memilih indeks valid.
-- 90 game simulasi penuh (30 per mode, pemain acak): semua berakhir < 200
-  ronde, 0 seri. Menang pemain: Ember 15/30, Tide 15/30, Thorn 10/30
-  (pemain acak — bukan ukuran skill; membuktikan tidak ada deadlock).
-
-## 2. Syntax — semua modul ES
-
-`node --input-type=module --check` pada 10 file `game/src/*.js`: semua OK.
-
-## 3. End-to-end browser (CDP, Chromium headless) — `node /tmp/cdp-test.mjs`
-
-19 checks, **19 pass, 0 fail, 0 JS exception**.
-
-- Title menampilkan 3 mode; pilih Tide Hollow → HUD, tangan 5 kartu,
-  tangan lawan 5 kartu tertutup, ronde 1.
-- Klik kartu → kartu pindah ke meja; AI menjawab; verdict muncul di arena;
-  ronde maju ke 2; tangan diisi ulang ke 5.
-- Buang & tarik: tangan tetap 5, tombol nonaktif setelah dipakai.
-- Keyboard "2" memainkan kartu ke-2.
-- Loop 4 ronde tambahan: mencapai ronde ≥ 6, jurnal duel terisi.
-- Screenshot live table tersimpan di `/tmp/shots/live.png`.
-
-## 4. Screenshot — 4 render nyata via chrome-headless-shell
-
-`--window-size=1280,800 --virtual-time-budget=6000`, `?shot=<...>&seed=7`:
-
-- `1-play.jpg` 112.604 byte — meja live: tangan pemain + lawan, kartu
-  terbuka 8 Api vs 6 Daun, nyawa 24/30 vs 10/30, skor 680, banner
-  RESONANSI +4, HUD lengkap.
-- `2-title.jpg` 74.522 byte — title + 3 mode.
-- `3-win.jpg` 54.081 byte — TAKHTA MILIKMU + 8 statistik.
-- `4-loss.jpg` 52.240 byte — TAKHTA JATUH + 8 statistik.
-- Semua 1280×800 JPEG, < 256 KiB. Dilihat langsung hasil rendernya.
-
-## 5. Entrypoint — `main.ts` (2 run, determinisme)
-
-```sh
-mkdir -p out out2 && MAKEFUN_OUTPUT_DIR=out node main.ts && MAKEFUN_OUTPUT_DIR=out2 node main.ts
-diff -r out out2   # IDENTICAL
+```
+44 passed, 0 failed
 ```
 
-- `out/` berisi `dossier.json` (450.221 byte, < 1,5 MiB), `game/` (12 file),
-  `screenshots/` (4 file). Dossier schema `makefun/dossier/v1`, cover = index 0
-  (`1-play.jpg`), teks dossier 56.846 byte (< 163.840), memuat ke-12 file game.
+Yang diuji: siklus sigil (tiap sigil mengalahkan tepat 1, dikalahkan 1,
+netral vs 1); Cermin = lawan +1 (vs Cermin = 6); Liar mengalahkan semua
+sigil; Perisai menahan + pulih 2 (dua Perisai saling pulih); keunggulan
+sigil +2 luka; luka minimal 1; Resonansi +4 (dan tidak saat sigil/pemenang
+berbeda); Bentrok saat seri netral (termasuk Cermin vs Cermin); Near Miss
+di 1–5, bukan di 0/6; dek 30 kartu (6/sigil, 2 Cermin, 2 Perisai, 2 Liar);
+shuffle deterministik per seed; duel deterministik seed sama (seed beda
+hasil beda); AI agresif = kartu terkuat; AI bertahan = Perisai saat nyawa
+≤ 12, kartu terlemah bila nyawa penuh; AI penipu deterministik per seed;
+buang-tarik sekali per ronde dan reset tiap ronde; tumpukan habis dikocok
+ulang dari buang; **150 simulasi duel penuh** (50/mode, seed 1000–1049):
+menang 76 / kalah 73 / seri 1, ronde maks 30, tanpa deadlock, tangan
+selalu 5 kartu.
 
-## 6. Zero-fail QA — direktori bersih `/tmp/qa-clean`
+Selama build ditemukan dan diperbaiki 2 bug nyata dari harness ini:
+AI bertahan memilih Perisai sebagai "kartu terlemah" (bobot −1) dan satu
+ekspektasi luka keunggulan sigil (benar = 3, bukan 2: selisih 0 → min 1,
++2 keunggulan).
 
-Salinan paket (tanpa `out/`) → `MAKEFUN_OUTPUT_DIR=out node main.ts` OK.
-Gate checks: game 12 file (cap 993), 56.020 byte (cap 48 MiB),
-`index.html` 380 byte (cap 1 MiB), 4 screenshot ≤ 256 KiB, nama file valid,
-tidak ada referensi jaringan di `game/` maupun `main.ts` (grep `http://`,
-`https://`, `//host`: kosong). Render dari direktori bersih byte-identik
-dengan render dari direktori kerja (md5 sama).
+## 2. Cek sintaks — `node --check game/src/*.js`
 
-## 7. SolAPI judge — TIDAK JALAN
+Semua 11 modul lolos: ai, audio, config, deck, input, main, random,
+render, rules, shots, state. (`game/package.json` berisi
+`{"type":"module"}` agar Node memperlakukan `.js` sebagai ES module.)
 
-`POST /v1/responses` HTTP 503 pada 2 percobaan terpisah (helper retry 3×
-internal tiap percobaan). `GET /v1/models` HTTP 200 — endpoint list hidup,
-responses mati sepanjang 22 Nov. Karena itu **tidak ada skor judge 2-pass
-yang diklaim**. Sebagai gantinya: self-critique terstruktur terhadap 5
-kriteria juri (lihat laporan koordinator) + 4 perbaikan nyata ditemukan dan
-diperbaiki dari screenshot (face-down crash, banner menempel, duplikasi
-prefix log, tanpa animasi flip).
+## 3. E2E browser headless — Chromium 1255 + playwright-core
+
+Skrip: `/tmp/e2e/run.mjs` (serve `game/` di 127.0.0.1:8931, viewport
+1280×800). Hasil run terakhir:
+
+```
+SHOT 1-title.jpg 103732 byte
+SHOT 2-table.jpg 142661 byte
+SHOT 3-win.jpg 88314 byte
+SHOT 4-loss.jpg 64572 byte
+E2E after mode pick: {"started":true,"hand":5,"phase":"play"}
+E2E after click card 3: {"round":2,"log":2,"phase":"play"}
+E2E after keys 1, D, 2: {"round":3,"discardUsed":true,"hp":[30,23]}
+E2E full game: {"phase":"over","winner":"foe","rounds":24,"endVisible":true}
+E2E after R replay: {"phase":"play","round":1}
+JS ERRORS: 0
+```
+
+Klik sungguhan (pilih mode Tembok Lumut, klik kartu ke-3), keyboard
+(1 main kartu, D + 2 buang-tarik), duel penuh 24 ronde sampai layar akhir
+muncul, lalu R main lagi ke ronde 1. **0 JS exception, 0 console error,
+0 request gagal.** Dua 404 favicon pada run pertama diperbaiki dengan
+`<link rel="icon" href="data:,">` di `index.html`; run berikutnya 0 error.
+
+## 4. Screenshot — render nyata, dilihat langsung
+
+4 JPEG 1280×800, masing-masing ≤ 256 KiB, dari `?shot=...&seed=20261122`
+via headless Chromium (bukan edit/komposit):
+
+| File | Isi | Ukuran |
+| --- | --- | --- |
+| `screenshots/1-title.jpg` | Layar judul + 3 kartu mode | 103.732 byte |
+| `screenshots/2-table.jpg` | Meja live ronde 5 | 142.661 byte |
+| `screenshots/3-win.jpg` | Layar menang + confetti | 88.314 byte |
+| `screenshots/4-loss.jpg` | Layar kalah | 64.572 byte |
+
+Cover = `1-title.jpg` (pertama menurut nama). Semua screenshot dilihat
+langsung di sesi ini: judul terbaca, meja menampilkan tangan pemain +
+lawan, kartu bernilai + sigil berwarna, nyawa 23/30 vs 27/30, meter
+Resonansi, status AI, misi, jurnal (entri 1–5 lengkap), dan legenda siklus.
+
+## 5. main.ts — 2 run deterministik
+
+```
+MAKEFUN_OUTPUT_DIR=/tmp/f1 node main.ts   # dossier 592.523 byte
+MAKEFUN_OUTPUT_DIR=/tmp/f2 node main.ts   # dossier 592.523 byte
+cmp /tmp/f1/dossier.json /tmp/f2/dossier.json  -> identik
+diff -r /tmp/f1 /tmp/f2                     -> identik
+```
+
+Verifikasi independen: `buildDossier` dijalankan ulang atas `/tmp/f1`
+dan dibandingkan byte-per-byte dengan `dossier.json` yang ditulis
+`main.ts` → **identik**. Dossier: schema `makefun/dossier/v1`,
+14 source file (57.485 byte teks, di bawah cap 160 KiB), 4 gambar,
+total output 1.066.379 byte (di bawah cap 64 MiB).
+
+## 6. Zero-fail QA — direktori bersih
+
+Salin repo ke `/tmp/qa-clean`, jalankan dari sana:
+
+```
+node test.mjs            -> 44 passed, 0 failed
+MAKEFUN_OUTPUT_DIR=/tmp/qa-out node main.ts
+                         -> dossier ditulis (592.523 byte), game/ + screenshots/ + dossier.json lengkap
+```
+
+Scan secret: tidak ada API key / password / token di file repo
+(`grep -riE api[_-]?key|password|secret|token` → nihil).
+Scan network: tidak ada `http(s)://`, `fetch(`, `eval(`, `new Function`,
+`document.cookie`, atau service worker di `game/` (grep → nihil).
+`game/index.html` = 5.463 byte (di bawah cap 1 MiB).
+
+## 7. Judge 2-pass (SolAPI gpt-6.1-sol Mode MAX)
+
+**TIDAK JALAN — SolAPI `/v1/responses` HTTP 503.** Dicek 2× di sesi ini
+(18:47 dan ~19:00 WIB; helper retry 3× tiap percobaan, total 6 upaya
+gagal) setelah seharian 503 pada 2026-11-22. Karena itu **tidak ada skor
+judge yang diklaim**. Sebagai gantinya dilakukan self-critique
+terstruktur terhadap 5 kriteria juri:
+
+1. Kelengkapan (judul, meja, tangan pemain + lawan, nilai/sigil terbaca,
+   nyawa, menang, kalah) — terpenuhi, dibuktikan 4 screenshot.
+2. Kedalaman (siklus 4 sigil + 3 spesial + Resonansi + Bentrok + Near
+   Miss + buang-tarik + 3 AI berkepribadian + misi) — kuat; kelemahan
+   yang diakui: AI tidak membaca sigil tangan pemain.
+3. Feel (animasi deal, banner, confetti, synth WebAudio + bisu) — kuat;
+   kelemahan: belum ada flip 3D kartu, hanya animasi deal.
+4. Tampilan/orisinalitas (nama + tema Indonesia orisinal, sigil beda
+   warna + glyph + nama, palet per mode) — kuat.
+5. Struktur (11 modul, satu tugas tiap file, nama sesuai fungsi) —
+   kuat; dossier outline menampilkan `config/deck/rules/ai/state/
+   render/input/audio/shots/main` + `index.html` + `style.css`.
+
+Perbaikan dari self-critique yang sudah diterapkan: jurnal ronde
+dipersingkat (1–2 baris/entri) agar 5 entri muat penuh di screenshot
+meja; favicon `data:` agar 0 console error.
