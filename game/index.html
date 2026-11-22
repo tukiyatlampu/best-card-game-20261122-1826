@@ -1,14 +1,126 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ember Court — Duel Empat Sigil</title>
-<link rel="stylesheet" href="./style.css">
+<title>Ember Court — Duel Kartu Sigil</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
 </head>
-<body>
-<div id="app"></div>
-<p id="status" role="status" aria-live="polite"></p>
+<body data-mode="berburu">
+<div id="app">
+  <header id="topbar">
+    <div class="brand">🔥 EMBER COURT <span>Duel Kartu Sigil</span></div>
+    <div class="top-info"><span id="mode-label">Bara Memburu</span><span id="round-label">Ronde 1</span><span id="score-label">Skor 0 – 0</span></div>
+    <div class="top-actions">
+      <button id="btn-mute" type="button">🔊 Suara</button>
+      <button id="btn-menu" type="button">Menu (Esc)</button>
+    </div>
+  </header>
+
+  <div id="layout">
+    <main id="table">
+      <section id="ai-zone" aria-label="Lawan">
+        <div class="duelist-row">
+          <div class="duelist-id"><strong id="ai-name">Raka si Pemburu</strong><span id="ai-blurb">Selalu memainkan kartu terkuat.</span></div>
+          <div class="hp-wrap"><div class="hp-bar"><div id="ai-hp-fill" class="hp-fill"></div></div><span id="ai-hp-text" class="hp-text">30 / 30</span></div>
+        </div>
+        <div id="ai-hand" class="hand backs" aria-label="Tangan lawan"></div>
+      </section>
+
+      <section id="arena" aria-label="Arena">
+        <div id="cycle-strip" aria-label="Siklus sigil"></div>
+        <div id="played-row">
+          <div class="played-col"><div class="played-tag">KAMU</div><div id="my-played"></div></div>
+          <div id="vs-badge">VS</div>
+          <div class="played-col"><div class="played-tag">LAWAN</div><div id="foe-played"></div></div>
+        </div>
+        <div id="banner" role="status"></div>
+      </section>
+
+      <section id="player-zone" aria-label="Kamu">
+        <div class="duelist-row">
+          <div class="duelist-id"><strong>Kamu — Pendekar Bara</strong><span>Pilih kartu (1–5) atau buang-tarik (D).</span></div>
+          <div class="hp-wrap"><div class="hp-bar"><div id="my-hp-fill" class="hp-fill"></div></div><span id="my-hp-text" class="hp-text">30 / 30</span></div>
+        </div>
+        <div id="my-hand" class="hand" aria-label="Tanganmu"></div>
+        <div id="actions">
+          <button id="btn-discard" type="button">Buang &amp; Tarik (D)</button>
+          <span id="discard-state">Sekali per ronde: buang 1 kartu, tarik 1 baru.</span>
+        </div>
+      </section>
+    </main>
+
+    <aside id="hud" aria-label="Panel duel">
+      <section class="hud-box" id="resonance-box">
+        <h2>⚡ Meter Resonansi</h2>
+        <div id="resonance-pips"><i></i><i></i></div>
+        <p id="resonance-text">Resonansimu: — (2× beruntun = +4 luka)</p>
+        <p id="ai-streak-text">Resonansi lawan: —</p>
+      </section>
+      <section class="hud-box">
+        <h2>🤖 Status Lawan</h2>
+        <p id="ai-status">Menunggumu.</p>
+      </section>
+      <section class="hud-box" id="mission-box">
+        <h2>🎯 Misi</h2>
+        <p id="mission-text">—</p>
+        <p id="mission-progress">0/3</p>
+      </section>
+      <section class="hud-box grow">
+        <h2>📜 Jurnal Duel</h2>
+        <ol id="journal"></ol>
+      </section>
+      <section class="hud-box">
+        <h2>♻️ Siklus Sigil</h2>
+        <p id="cycle-legend">—</p>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<div id="title-screen" class="overlay">
+  <div class="title-card">
+    <p class="title-eyebrow">DUEL KARTU SIGIL · OFFLINE · 1 LAWAN 1</p>
+    <h1>🔥 EMBER COURT</h1>
+    <p class="title-sub">Dewan Bara — menangkan duel 30 nyawa dengan sigil, cermin, perisai, dan kartu Liar.</p>
+    <div class="mode-row">
+      <button class="mode-card" type="button" data-mode="berburu">
+        <span class="mode-glyph">🔥</span><strong>Bara Memburu</strong>
+        <span>Raka si Pemburu — agresif, selalu kartu terkuat.</span>
+        <em>Misi: 3 ronde Api</em>
+      </button>
+      <button class="mode-card" type="button" data-mode="tembok">
+        <span class="mode-glyph">🌿</span><strong>Tembok Lumut</strong>
+        <span>Sari si Penjaga — bertahan, berperisai saat lemah.</span>
+        <em>Misi: tahan 3 serangan</em>
+      </button>
+      <button class="mode-card" type="button" data-mode="topeng">
+        <span class="mode-glyph">🎭</span><strong>Topeng Asap</strong>
+        <span>Wira si Penipu — acak, bluff di tiap ronde.</span>
+        <em>Misi: 2 ronde Liar</em>
+      </button>
+    </div>
+    <div class="howto">
+      <p><strong>Cara main:</strong> tiap ronde main 1 kartu bersamaan. Api &gt; Daun &gt; Batu &gt; Air &gt; Api. Kekuatan 1–9 memutuskan bila sigil netral. Cermin meniru lawan +1 · Perisai menahan + pulih 2 · Liar unggul atas semua. Menang 2 ronde beruntun dengan sigil sama = Resonansi +4 luka. Seri kekuatan = Bentrok −2 keduanya.</p>
+      <p><strong>Keyboard:</strong> 1–5 main kartu · D buang &amp; tarik · Esc menu · R main lagi · M bisu.</p>
+      <p id="seed-line">Seed 20261122</p>
+    </div>
+  </div>
+</div>
+
+<div id="end-screen" class="overlay hidden">
+  <div class="title-card">
+    <h1 id="end-title">KAMU MENANG!</h1>
+    <div id="end-stats"></div>
+    <div class="end-actions">
+      <button id="btn-again" type="button">Main Lagi (R)</button>
+      <button id="btn-tomenu" type="button">Pilih Mode (Esc)</button>
+    </div>
+  </div>
+</div>
+
+<div id="confetti" aria-hidden="true"></div>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
